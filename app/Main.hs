@@ -12,7 +12,7 @@ main :: IO ()
 main                = do
     c <- C.getContents
     let c' = T.unlines . map T.decodeUtf7 . C.lines $ c
-    let d' = T.unlines . map S.decodeUtf7 . C.lines $ c
+    let d' = T.unlines . map S.decodeUtf7B . C.lines $ c
     if (c' /= d')
       then putStrLn "Warning, does not match"
       else putStrLn "Matches.."

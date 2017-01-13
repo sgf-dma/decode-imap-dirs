@@ -25,6 +25,7 @@ module Sgf.Text.IMAPUtf7
     --
     -- $decode
     , decodeUtf7
+    , decodeUtf7B
     )
   where
 
@@ -166,10 +167,23 @@ splitB              = foldrF (groupByF append) . foldrB splitF
 
 -- $decode
 
--- | Just call `Data.Text.Encoding.UTF7.IMAP.decodeUtf7' for corresponding
--- imap utf7 string portion.
-decodeUtf7 :: C.ByteString -> T.Text
-decodeUtf7          = T.concat . map go . splitB
+-- | Decode imap utf7 string, using my split functions for splitting input to
+-- ascii and utf7 portions, but then just call
+-- `Data.Text.Encoding.UTF7.IMAP.decodeUtf7' for actual utf7 decoding.
+-- Version for 'Foldable'.
+decodeUtf7 :: Foldable t => t Char -> T.Text
+decodeUtf7         = T.concat . map go . split
+  where
+    go :: IMAPString -> T.Text
+    go (Plain xs)   = T.pack xs
+    go (Utf7  xs)   = T.decodeUtf7 (C.pack ('&' : (xs ++ "-")))
+
+-- | Decode imap utf7 string, using my split functions for splitting input to
+-- ascii and utf7 portions, but then just call
+-- `Data.Text.Encoding.UTF7.IMAP.decodeUtf7' for actual utf7 decoding.
+-- Version for 'Data.ByteString.Char8.ByteString'.
+decodeUtf7B :: C.ByteString -> T.Text
+decodeUtf7B         = T.concat . map go . splitB
   where
     go :: IMAPString -> T.Text
     go (Plain xs)   = T.pack xs
