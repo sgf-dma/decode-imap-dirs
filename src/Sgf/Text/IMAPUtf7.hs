@@ -3,7 +3,7 @@ module Sgf.Text.IMAPUtf7
     ( IMAPString (..)
     , append
     , split
-    , decode
+    , decodeUtf7
     )
   where
 
@@ -12,8 +12,10 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding.UTF7.IMAP as T
 import qualified Data.ByteString.Char8 as C
 
+import Sgf.Data.Fold
 
--- Generalized `groupBy`.
+
+-- | Generalized `groupBy`. Not used.
 groupByA :: Alternative f => (a -> a -> Bool) -> [a] -> [f a]
 groupByA _ []       = []
 groupByA eq ts      = snd $ foldr (\x z -> (x, go x z)) (last ts, []) ts
@@ -21,12 +23,12 @@ groupByA eq ts      = snd $ foldr (\x z -> (x, go x z)) (last ts, []) ts
     -- For last list element i provide dummy next element equal to it.
     --go :: a -> (a, [[a]]) -> [[a]]
     go x (y, ws)
-      | x `eq` y      = case ws of
-                        []       ->  pure x         : []
+      | x `eq` y    = case ws of
+                        []       -> [pure x]
                         (z : zs) -> (pure x <|> z)  : zs
       | otherwise   =                pure x         : ws
 
--- Another generalization of `groupBy`. If user-supplied function is able to
+-- | Another generalization of `groupBy`. If user-supplied function is able to
 -- merge two elements, it should return `Just` with merged element, otherwise
 -- it should return `Nothing` and i will keep original element.
 groupBy' :: (a -> a -> Maybe a) -> [a] -> [a]
@@ -35,10 +37,18 @@ groupBy' f ts       = let (zs, mw) = foldr go ([], Nothing) ts
                       in  maybe zs (: zs) mw
   where
     --go :: a -> ([a], Maybe a) -> ([a], Maybe a)
-    go x (zs, mw)   = case (mw >>= f x) of
+    go x (zs, mw)   = case mw >>= f x of
                         Just y  -> (zs                  , Just y)
                         Nothing -> (maybe zs (: zs) mw  , Just x)
 
+-- | Rewrite `groupBy` with `Fold`.
+groupByF :: (a -> a -> Maybe a) -> Fold a [a]
+groupByF f          = Fold go ([], Nothing) (\(zs, mw) -> maybe zs (: zs) mw)
+  where
+    --go :: a -> ([a], Maybe a) -> ([a], Maybe a)
+    go x (zs, mw)   = case mw >>= f x of
+                        Just y  -> (zs                  , Just y)
+                        Nothing -> (maybe zs (: zs) mw  , Just x)
 
 -- | IMAP Utf7 string may contain either @ascii@ or @utf7@ characters.
 data IMAPString     = Plain {imapString :: String}
@@ -53,30 +63,60 @@ append _          _           = Nothing
 
 -- | Split string to ascii and utf7 portions.
 split' :: String -> [IMAPString]
-split' []         = []
-split' ts         = foldr (\x f y m -> go x (f x) y m) (\_ m -> [m]) ts '.' (Plain [])
+split' []           = []
+split' ts           = foldr (\x f y m -> go x (f x) y m) (\_ m -> [m]) ts '.' (Plain [])
   where
     -- Pass mode (using empty string with correct constructor) to the
     -- accumulator and only *then* pattern match on its result.
     go :: Char -> (IMAPString -> [IMAPString]) -> Char -> IMAPString -> [IMAPString]
     go x zs y m
       | y == '&' && x == '-'    = case m of
-                                    Plain _ -> Plain ['&']  : (zs (Plain []))
+                                    Plain _ -> Plain ['&']  : zs (Plain [])
                                     Utf7  _ -> error "No parse 1."
       | y == '&'                = case m of
-                                    Plain _ -> Utf7  [x]    : (zs (Utf7 []))
+                                    Plain _ -> Utf7  [x]    : zs (Utf7 [])
                                     Utf7  _ -> error "No parse 2."
       |             x == '&'    = zs m
       |             x == '-'    = case m of
-                                    Plain _ -> Plain ['-']  : (zs m)
+                                    Plain _ -> Plain ['-']  : zs m
                                     Utf7  _ -> zs (Plain [])
-      | otherwise               = m{imapString = [x]} : (zs m)
+      | otherwise               = m{imapString = [x]} : zs m
 
-split :: String -> [IMAPString]
-split             = groupBy' append . split'
+-- | Rewrite `split'` with `Fold`.
+splitF :: Fold Char [IMAPString]
+splitF              = Fold  (\x f y m -> go x (f x) y m) (\_ m -> [m])
+                            (\h -> h '.' (Plain []))
+  where
+    -- Pass mode (using empty string with correct constructor) to the
+    -- accumulator and only *then* pattern match on its result.
+    go :: Char -> (IMAPString -> [IMAPString]) -> Char -> IMAPString -> [IMAPString]
+    go x zs y m
+      | y == '&' && x == '-'    = case m of
+                                    Plain _ -> Plain ['&']  : zs (Plain [])
+                                    Utf7  _ -> error "No parse 1."
+      | y == '&'                = case m of
+                                    Plain _ -> Utf7  [x]    : zs (Utf7 [])
+                                    Utf7  _ -> error "No parse 2."
+      |             x == '&'    = zs m
+      |             x == '-'    = case m of
+                                    Plain _ -> Plain ['-']  : zs m
+                                    Utf7  _ -> zs (Plain [])
+      | otherwise               = m{imapString = [x]} : zs m
 
-decode :: String -> T.Text
-decode            = T.concat . map go . split
+--split :: String -> [IMAPString]
+--split               = groupBy' append . split'
+
+split :: Foldable t => t Char -> [IMAPString]
+split               = foldrF (groupByF append) . foldrF splitF
+
+splitB :: C.ByteString -> [IMAPString]
+splitB              = foldrF (groupByF append) . foldrB splitF
+
+
+-- $decode
+
+decodeUtf7 :: C.ByteString -> T.Text
+decodeUtf7          = T.concat . map go . splitB
   where
     go :: IMAPString -> T.Text
     go (Plain xs)   = T.pack xs
