@@ -1,8 +1,8 @@
-name:                list-imap-folders
+name:                decode-imap-dirs
 version:             0.1.0.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
-homepage:            https://github.com/githubuser/list-imap-folders#readme
+homepage:            https://github.com/sgf-dma/decode-imap-dirs
 license:             BSD3
 license-file:        LICENSE
 author:              Author name here
@@ -23,7 +23,7 @@ library
                        , text-utf7
   default-language:    Haskell2010
 
-executable list-imap-folders
+executable decode-imap-dirs
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
@@ -32,17 +32,17 @@ executable list-imap-folders
                        , split
                        , text
                        , text-utf7
-                       , list-imap-folders
+                       , decode-imap-dirs
   default-language:    Haskell2010
   if flag(TestSgfSplit)
     cpp-options:       -DTestSgfSplit
 
-test-suite list-imap-folders-test
+test-suite decode-imap-dirs-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
-                     , list-imap-folders
+                     , decode-imap-dirs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
@@ -53,4 +53,4 @@ Flag TestSgfSplit
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/list-imap-folders
+  location: https://github.com/sgf-dma/decode-imap-dirs
